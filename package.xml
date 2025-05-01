@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>Catheter-Perception</name>
+  <version>0.0.1</version>
+  <description>ROS node that estimates and publishes the pose of the catheter tip using webcam image data and a segmentation model.</description>
+
+  <maintainer email="jason@cormedicalventures.com">Jason Lim</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Runtime dependencies -->
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <!-- For Python 3 compatibility (optional but helpful) -->
+  <exec_depend>python3</exec_depend>
+
+  <export>
+  </export>
+</package>
