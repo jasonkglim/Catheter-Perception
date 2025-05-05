@@ -11,6 +11,13 @@ import matplotlib.pyplot as plt
 import os
 import time
 
+# Log average code block times
+SET_IMAGE_TIME = []
+GET_MASK_TIME = []
+VISUALIZE_MASK_TIME = []
+GET_POSE_TIME = []
+LOOP_TIME = []
+
 def get_fresh_frame(cap, num_frames=1):
     '''
     Function to get a fresh frame from the camera.
@@ -20,14 +27,16 @@ def get_fresh_frame(cap, num_frames=1):
         num_frames: Number of frames to skip
     Returns:
         Fresh frame from the camera
+        Timestamp
     '''
     for _ in range(num_frames):
         cap.read()
     ret, frame = cap.read()
+    timestamp = rospy.Time.now().to_sec()
     if not ret:
         rospy.logerr("Failed to capture image from camera")
         return None
-    return frame
+    return frame, timestamp
 
 def show_mask(mask, ax, random_color=False):
     if random_color:
@@ -47,6 +56,13 @@ def get_tip_pose(masks):
         tip pose in catheter base frame
     '''
     rospy.loginfo("Calculating tip pose...")
+
+    # back project the masks to 3D space
+    
+    # voxel carving
+
+    # calculate the tip pose from the 3D shape
+
     return np.array([0, 0, 0])
 
 def get_mask(image, image_name, predictor):
@@ -60,10 +76,13 @@ def get_mask(image, image_name, predictor):
     rospy.loginfo(f"Generating mask for frame {image_name}...")
 
     # Input image to SAM model
-    start_time = rospy.Time.now().to_sec()
+    start_time = time.perf_counter()
     predictor.set_image(image)
-    rospy.loginfo(f"Time taken to set image: {rospy.Time.now().to_sec() - start_time:.4f} seconds")
+    elapsed_time = time.perf_counter() - start_time
+    SET_IMAGE_TIME.append(elapsed_time)
+    rospy.loginfo(f"Time taken to set image: {elapsed_time:.4f} seconds")
 
+    start_time = time.perf_counter()
     # Generate bounding box for catheter
     # Obtain coarse mask
     image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -79,7 +98,11 @@ def get_mask(image, image_name, predictor):
         box=box,
         multimask_output=False
     )
+    elapsed_time = time.perf_counter() - start_time
+    GET_MASK_TIME.append(elapsed_time)
+    rospy.loginfo(f"Time taken to generate mask: {elapsed_time:.4f} seconds")
 
+    start_time = time.perf_counter()
     # Visualize and save the mask
     plt.figure(figsize=(10, 10))
     plt.imshow(image)
@@ -92,6 +115,9 @@ def get_mask(image, image_name, predictor):
     # os.makedirs(image_dir, exist_ok=True)
     plt.savefig(os.path.join(image_dir, f"{image_name}.png"))
     plt.close()
+    elapsed_time = time.perf_counter() - start_time
+    VISUALIZE_MASK_TIME.append(elapsed_time)
+    print(f"Time taken to save image: {elapsed_time:.4f} seconds")
     
     return masks[0]
 
@@ -114,7 +140,7 @@ def main():
     predictor = SamPredictor(sam)
 
     # Initialize the mask generator
-    mask_generator = SamAutomaticMaskGenerator(sam)
+    # mask_generator = SamAutomaticMaskGenerator(sam)
 
     # Initialize the cameras
     cap1 = cv2.VideoCapture(0)  # Camera 1
@@ -124,31 +150,39 @@ def main():
 
     desired_period = rospy.Duration(5)  # Desired period for processing
     while not rospy.is_shutdown():
-        start_time = rospy.Time.now()
+        loop_start_time = time.perf_counter()
+        loop_start_time_ros = rospy.Time.now()
 
         # Capture images from two cameras
         rospy.loginfo("Capturing images from cameras...")
-        frame1 = get_fresh_frame(cap1)
-        frame1_name = f"cam1_{rospy.Time.now().to_sec():.2f}"
+        frame1, frame1_timestamp = get_fresh_frame(cap1)
+        frame1_name = f"cam1_{frame1_timestamp:.2f}"
         # cv2.imshow("stream", frame1)
         # key = cv2.waitKey(1) & 0xFF
         # if key == ord('q'):
         #     break
 
-        # Process the images with SAM
+        # Process the images with SAM   
         mask1 = get_mask(frame1, frame1_name, predictor)
         # mask2 = get_mask(frame2, f"cam2_{rospy.Time.now().to_sec():.2f}", predictor)
 
         # Get the tip pose from the masks
+        start_time = time.perf_counter()
         # tip_pose = get_tip_pose([mask1]) #, mask2])
         tip_pose = np.array([0, 0, 0])
+        elapsed_time = time.perf_counter() - start_time
+        GET_POSE_TIME.append(elapsed_time)
+        print(f"Time for get_tip_pose fn: {elapsed_time:.4f} seconds")
 
         # Publish the tip pose
         tip_msg = Point()
         tip_msg.x, tip_msg.y, tip_msg.z = tip_pose
         pub.publish(tip_msg)
 
-        elapsed = rospy.Time.now() - start_time
+        elapsed = rospy.Time.now() - loop_start_time_ros
+        elapsed_time = time.perf_counter() - loop_start_time
+        LOOP_TIME.append(elapsed_time)
+        print(f"Time for loop: {elapsed_time:.4f} seconds")
         if elapsed > desired_period:
             rospy.logwarn(f"Loop took {elapsed.to_sec():.2f}s — exceeded 1s budget!")
         else:
@@ -159,6 +193,12 @@ def main():
     # cap2.release()
     cv2.destroyAllWindows()
     rospy.loginfo("Catheter shape publisher node terminated.")
+    # Print average times
+    print(f"Average time to set image: {np.mean(SET_IMAGE_TIME):.4f} seconds")
+    print(f"Average time to get mask: {np.mean(GET_MASK_TIME):.4f} seconds")
+    print(f"Average time to visualize mask: {np.mean(VISUALIZE_MASK_TIME):.4f} seconds")
+    print(f"Average time to get pose: {np.mean(GET_POSE_TIME):.4f} seconds")
+    print(f"Average time for loop: {np.mean(LOOP_TIME):.4f} seconds")
 
 if __name__ == "__main__":
     main()
