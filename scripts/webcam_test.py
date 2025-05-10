@@ -30,7 +30,7 @@ print("Testing ability to open webcam device and stream video...")
 device = "/dev/video0"
 # configure_camera([device])
 
-cap = cv2.VideoCapture(0, cv2.CAP_V4L2)  # or "/dev/video0"
+cap = cv2.VideoCapture(2, cv2.CAP_V4L2)  # or "/dev/video0"
 
 if not cap.isOpened():
     print("Cannot open camera")
