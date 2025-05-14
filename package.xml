@@ -12,6 +12,7 @@
   <!-- Runtime dependencies -->
   <depend>rospy</depend>
   <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
 
   <!-- For Python 3 compatibility (optional but helpful) -->
