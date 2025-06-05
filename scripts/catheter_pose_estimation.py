@@ -1,3 +1,4 @@
+# Runs catheter pose estimation on a full set of calibraiton images
 import cv2
 import numpy as np
 import os
