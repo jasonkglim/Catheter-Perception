@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import segment_anything
 from segment_anything import sam_model_registry, SamPredictor
 import pandas as pd
+from skimage.morphology import skeletonize
+from scipy.interpolate import splprep, splev
 
 
 def visualize_results(img0, img1):
@@ -253,8 +255,7 @@ if __name__ == "__main__":
     for img_num, (image0, image1) in enumerate(
         zip(cam0_image_files, cam1_image_files)
     ):
-        if img_num != 3:
-            continue
+
         print(f"\nProcessing image pair {img_num+1}/{len(cam0_image_files)}")
 
         try:
@@ -265,7 +266,7 @@ if __name__ == "__main__":
             # Segmentation
             segmentation_masks = []
             print("Segmenting images...")
-
+            start_time = time.time()
             for image in [img0, img1]:
                 image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
                 image_reshaped = image_hsv.reshape((-1, 3))
@@ -316,22 +317,31 @@ if __name__ == "__main__":
             # Skeletonization
             z_values = occupied_points[:, 2]
             unique_z = np.unique(z_values)
-            centerline_points = []
+            min_z = np.min(unique_z)
+            min_z_slice = occupied_points[np.isclose(z_values, min_z)]
+            mean_xy = min_z_slice[:, :2].mean(axis=0)
+            base_point = np.array([mean_xy[0], mean_xy[1], min_z])
 
-            for z in np.sort(unique_z):
-                slice_points = occupied_points[np.isclose(z_values, z)]
-                if len(slice_points) > 0:
-                    mean_xy = slice_points[:, :2].mean(axis=0)
-                    centerline_points.append([mean_xy[0], mean_xy[1], z])
+            skeleton_map = skeletonize(voxel_map)
+            skeleton = np.argwhere(skeleton_map == 1) * VOXEL_SIZE - origin
+            skeleton = np.vstack((skeleton, base_point))
 
-            centerline_points = np.array(centerline_points)
+            sorted_skeleton = skeleton[np.argsort(skeleton[:, 2])]
+
+            # Fit a spline to the sorted skeleton points
+            tck, u = splprep(sorted_skeleton.T)
+            u_fine = np.linspace(
+                0, 1, 100
+            )  # Generate fine parameter values for smooth interpolation
+            spline = np.array(splev(u_fine, tck))
+
             # base_idx = np.argmin(np.abs(centerline_points[:, 2]))
             # tip_idx = np.argmax(centerline_points[:, 2])
             # base_idx = centerline_points[0, 2]
             # tip_idx = centerline_points[-1, 2]
 
-            base_coord = centerline_points[0]
-            tip_coord = centerline_points[-1]
+            base_coord = spline[:, 0]
+            tip_coord = spline[:, -1]
             print(f"Base coordinates: {base_coord}")
             print(f"Tip coordinates: {tip_coord}")
 
@@ -340,11 +350,14 @@ if __name__ == "__main__":
             tip_z = tip_coord[2] - base_coord[2]
             tip_coordinates.append([tip_x, tip_y, tip_z])
             print(f"Tip coordinates in base frame: {tip_coordinates[-1]}")
-
-            visualize_results(
-                img0,
-                img1,
-            )  # Visualize results for the current image pair
+            end_time = time.time()
+            print(
+                f"Processing time for image pair {img_num+1}: {end_time - start_time:.2f} seconds"
+            )
+            # visualize_results(
+            #     img0,
+            #     img1,
+            # )  # Visualize results for the current image pair
 
             break
 
@@ -353,11 +366,11 @@ if __name__ == "__main__":
             tip_coordinates.append([-999, -999, -999])
             continue
 
-    # tip_pose_df = pd.DataFrame(
-    #     tip_coordinates, columns=["tip_x", "tip_y", "tip_z"]
-    # )
-    # save_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_05_20_25_T1"
+    tip_pose_df = pd.DataFrame(
+        tip_coordinates, columns=["tip_x", "tip_y", "tip_z"]
+    )
+    save_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_05_20_25_T1"
 
-    # tip_pose_df.to_csv(
-    #     os.path.join(save_dir, "tip_coordinates.csv"), index=True
-    # )
+    tip_pose_df.to_csv(
+        os.path.join(save_dir, "tip_coordinates.csv"), index=True
+    )
