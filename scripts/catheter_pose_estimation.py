@@ -13,7 +13,7 @@ from segment_anything import sam_model_registry, SamPredictor
 import pandas as pd
 from skimage.morphology import skeletonize
 from scipy.interpolate import splprep, splev
-
+import torch
 
 def visualize_results(img0, img1):
     # Visualize voxel map in 3D
@@ -123,8 +123,8 @@ def visualize_results(img0, img1):
     # Project to cam0
     rvec0, _ = cv2.Rodrigues(R[0])
     centerline_img0 = project_points(centerline_3d, rvec0, T[0], K[0], d[0])
-    base_img0 = project_points(base_3d, rvec0, T[1], K[0], d[0])
-    tip_img0 = project_points(tip_3d, rvec0, T[1], K[0], d[0])
+    base_img0 = project_points(base_3d, rvec0, T[0], K[0], d[0])
+    tip_img0 = project_points(tip_3d, rvec0, T[0], K[0], d[0])
 
     # Project to cam1
     rvec1, _ = cv2.Rodrigues(R[1])
@@ -136,8 +136,8 @@ def visualize_results(img0, img1):
     img0_vis = img0.copy()
     for pt in centerline_img0.astype(int):
         cv2.circle(img0_vis, tuple(pt), 2, (255, 0, 0), -1)
-    cv2.circle(img0_vis, tuple(base_img0.astype(int)), 6, (0, 255, 0), -1)
-    cv2.circle(img0_vis, tuple(tip_img0.astype(int)), 6, (0, 0, 255), -1)
+    cv2.circle(img0_vis, tuple(base_img0.astype(int)), 2, (0, 255, 0), -1)
+    cv2.circle(img0_vis, tuple(tip_img0.astype(int)), 2, (0, 0, 255), -1)
 
     plt.figure(figsize=(8, 6))
     plt.imshow(cv2.cvtColor(img0_vis, cv2.COLOR_BGR2RGB))
@@ -149,8 +149,8 @@ def visualize_results(img0, img1):
     img1_vis = img1.copy()
     for pt in centerline_img1.astype(int):
         cv2.circle(img1_vis, tuple(pt), 2, (255, 0, 0), -1)
-    cv2.circle(img1_vis, tuple(base_img1.astype(int)), 6, (0, 255, 0), -1)
-    cv2.circle(img1_vis, tuple(tip_img1.astype(int)), 6, (0, 0, 255), -1)
+    cv2.circle(img1_vis, tuple(base_img1.astype(int)), 2, (0, 255, 0), -1)
+    cv2.circle(img1_vis, tuple(tip_img1.astype(int)), 2, (0, 0, 255), -1)
 
     plt.figure(figsize=(8, 6))
     plt.imshow(cv2.cvtColor(img1_vis, cv2.COLOR_BGR2RGB))
@@ -165,9 +165,11 @@ if __name__ == "__main__":
     print("Starting Catheter Pose Estimation...")
 
     calib_id = "05-16-25"
-    calib_base_dir = f"C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\camera_calibration\\{calib_id}"
-    image_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_05_20_25_T1\\image_snapshots"
-
+    # calib_base_dir = f"C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\camera_calibration\\{calib_id}"
+    # image_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_05_20_25_T1\\image_snapshots"
+    # calib_base_dir = f"/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/{calib_id}"
+    image_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v3_05_20_25_T1/image_snapshots"
+    
     print("Loading camera calibration data...")
     # Load pixel color classification model
     with open(
@@ -201,10 +203,10 @@ if __name__ == "__main__":
 
     print("Creating voxel space and lookup table...")
     # Define voxel space and create lookup table
-    VOXEL_SIZE = 0.0005  # mm
-    N_X = 60
-    N_Y = 60
-    N_Z = 60
+    VOXEL_SIZE = 0.0003  # mm
+    N_X = 100
+    N_Y = 100
+    N_Z = 100
     voxel_map = np.zeros((N_X, N_Y, N_Z), dtype=np.uint8)
     # location of physical world frame origin in voxel space
     origin = np.array([(N_X - 1) / 2, (N_Y - 1) / 2, 0]) * VOXEL_SIZE
@@ -227,11 +229,12 @@ if __name__ == "__main__":
 
     print("Loading SAM model...")
     # Load SAM model
-    checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+    checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+    # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
     model_type = "vit_b"
     sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
-    # sam.to("cuda" if torch.cuda.is_available() else "cpu")
-    sam.to("cpu")
+    sam.to("cuda" if torch.cuda.is_available() else "cpu")
+    # sam.to("cpu")
     sam_predictor = SamPredictor(sam)
 
     print("Looping over images...")
@@ -257,7 +260,8 @@ if __name__ == "__main__":
     ):
 
         print(f"\nProcessing image pair {img_num+1}/{len(cam0_image_files)}")
-
+        # if img_num != 3:
+        #     continue
         try:
             # Read images
             img0 = cv2.imread(f"{image_dir}/cam_0/{image0}")
@@ -327,14 +331,14 @@ if __name__ == "__main__":
             skeleton = np.vstack((skeleton, base_point))
 
             sorted_skeleton = skeleton[np.argsort(skeleton[:, 2])]
-
+            
             # Fit a spline to the sorted skeleton points
             tck, u = splprep(sorted_skeleton.T)
             u_fine = np.linspace(
                 0, 1, 100
             )  # Generate fine parameter values for smooth interpolation
             spline = np.array(splev(u_fine, tck))
-
+            centerline_points = spline.T
             # base_idx = np.argmin(np.abs(centerline_points[:, 2]))
             # tip_idx = np.argmax(centerline_points[:, 2])
             # base_idx = centerline_points[0, 2]
@@ -352,14 +356,13 @@ if __name__ == "__main__":
             print(f"Tip coordinates in base frame: {tip_coordinates[-1]}")
             end_time = time.time()
             print(
-                f"Processing time for image pair {img_num+1}: {end_time - start_time:.2f} seconds"
+                f"Processing time for image pair {img_num+1}: {end_time - start_time:.2f} seconds\n"
             )
             # visualize_results(
             #     img0,
             #     img1,
             # )  # Visualize results for the current image pair
-
-            break
+            
 
         except Exception as e:
             print(f"⚠️ Error processing image pair {img_num+1}: {e}")
@@ -369,8 +372,8 @@ if __name__ == "__main__":
     tip_pose_df = pd.DataFrame(
         tip_coordinates, columns=["tip_x", "tip_y", "tip_z"]
     )
-    save_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_05_20_25_T1"
-
+    # save_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_05_20_25_T1"
+    save_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v3_05_20_25_T1"
     tip_pose_df.to_csv(
         os.path.join(save_dir, "tip_coordinates.csv"), index=True
     )
