@@ -545,14 +545,30 @@ if __name__ == "__main__":
     # Load example images (replace with actual image loading)
     base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_06_04_25_test"
     img_dir = os.path.join(base_dir, "image_snapshots")
-    img0_paths = sorted(glob.glob(os.path.join(img_dir, "cam_0", "*.png")))
-    img1_paths = sorted(glob.glob(os.path.join(img_dir, "cam_1", "*.png")))
+
+    cam0_image_files = [
+        f
+        for f in os.listdir(f"{img_dir}/cam_0")
+        if f.endswith((".jpg", ".png", ".jpeg"))
+    ]
+    cam1_image_files = [
+        f
+        for f in os.listdir(f"{img_dir}/cam_1")
+        if f.endswith((".jpg", ".png", ".jpeg"))
+    ]
+    # make sure image files are sorted by index
+    cam0_image_files.sort(key=lambda name: int(name.split("_")[0]))
+    cam1_image_files.sort(key=lambda name: int(name.split("_")[0]))
 
     all_shape_data = []
-    for num, (path0, path1) in enumerate(zip(img0_paths, img1_paths)):
-        print(f"Processing Image pair {num+1} / {len(img0_paths)}...")
-        img0 = cv2.imread(path0)
-        img1 = cv2.imread(path1)
+    for num, (path0, path1) in enumerate(
+        zip(cam0_image_files, cam1_image_files)
+    ):
+        print(f"Processing Image pair {num+1} / {len(cam0_image_files)}...")
+        print(f"Image pair: {path0}, {path1}")
+
+        img0 = cv2.imread(os.path.join(img_dir, "cam_0", path0))
+        img1 = cv2.imread(os.path.join(img_dir, "cam_1", path1))
 
         # Estimate pose
         start_time = time.time()
@@ -572,7 +588,7 @@ if __name__ == "__main__":
             [f"{np.degrees(a):.2f}" for a in tip_angles[0]],
         )
         all_shape_data.append(tip_positions[0] + tip_angles[0])
-        break
+        # break
 
     pd.DataFrame(
         all_shape_data,
