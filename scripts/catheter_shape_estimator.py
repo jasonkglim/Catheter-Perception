@@ -25,7 +25,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -48,7 +49,8 @@ class CatheterShapeEstimator:
         self.voxel_map_setup(voxel_size=voxel_size, voxel_range=voxel_range)
 
         # Load pixel color classification model
-        classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_model.pkl"
+        # classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_model.pkl"
+        classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_model.pkl"
         with open(classifier_path, "rb") as f:
             self.pixel_classifier = pickle.load(f)
 
@@ -108,6 +110,22 @@ class CatheterShapeEstimator:
         class_mask = prediction.reshape(image.shape[:2])
         prob_mask = self.pixel_classifier.predict_proba(hsv_pixels)
         prob_mask = prob_mask.reshape((image.shape[0], image.shape[1], -1))
+
+        # # Visualize the classification results
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(1, 2, 1)
+        # plt.imshow(class_mask, cmap="jet")
+        # plt.title("Class Mask")
+        # plt.axis("off")
+        # plt.subplot(1, 2, 2)
+        # plt.imshow(
+        #     np.max(prob_mask, axis=-1), cmap="hot", vmin=0, vmax=1
+        # )
+        # plt.title("Probability Mask")
+        # plt.axis("off")
+        # plt.tight_layout()
+        # plt.show()
+
         return class_mask, prob_mask
 
     def open_close_mask(self, mask, kernel_size=5):
@@ -262,7 +280,7 @@ class CatheterShapeEstimator:
                 point_labels = None
                 if prompt_type == "max_prob":
                     # Run SAM predictor using max probability pixel as prompt
-                    labels = [1, 2]
+                    labels = [2]
                     point_coords = np.flip(
                         max_prob_indices[labels], axis=1
                     )  # Use red and 'other' pixels as foreground prompts
@@ -540,10 +558,11 @@ class CatheterShapeEstimator:
 
 if __name__ == "__main__":
     # Example usage
-    estimator = CatheterShapeEstimator()
+    estimator = CatheterShapeEstimator(force_cpu=False)
 
     # Load example images (replace with actual image loading)
-    base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v3_06_04_25_test"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v3_06_17_25_T1"
+    # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\NA_06_13_25_test"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
     cam0_image_files = [
@@ -573,7 +592,7 @@ if __name__ == "__main__":
         # Estimate pose
         start_time = time.time()
         tip_positions, tip_angles = estimator.estimate_tip_pose(
-            images=[(img0, img1)], prompt_type="centroid", visualize=False
+            images=[(img0, img1)], prompt_type="max_prob", visualize=False
         )
         end_time = time.time()
         print(
