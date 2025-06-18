@@ -561,7 +561,7 @@ if __name__ == "__main__":
     estimator = CatheterShapeEstimator(force_cpu=False)
 
     # Load example images (replace with actual image loading)
-    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v3_06_17_25_T1"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v3_06_18_25_T1"
     # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\NA_06_13_25_test"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
