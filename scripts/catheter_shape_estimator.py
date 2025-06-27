@@ -25,8 +25,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -49,8 +49,8 @@ class CatheterShapeEstimator:
         self.voxel_map_setup(voxel_size=voxel_size, voxel_range=voxel_range)
 
         # Load pixel color classification model
-        classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_blue_model.pkl"
-        # classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_model.pkl"
+        # classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_blue_model.pkl"
+        classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_blue_model.pkl"
         with open(classifier_path, "rb") as f:
             self.pixel_classifier = pickle.load(f)
 
@@ -562,7 +562,7 @@ if __name__ == "__main__":
     estimator = CatheterShapeEstimator(force_cpu=False)
 
     # Load example images (replace with actual image loading)
-    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v3_06_18_25_T1"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v4_06_26_25_T3"
     # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\NA_06_13_25_test"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
@@ -593,7 +593,7 @@ if __name__ == "__main__":
         # Estimate pose
         start_time = time.time()
         tip_positions, tip_angles = estimator.estimate_tip_pose(
-            images=[(img0, img1)], prompt_type="max_prob", visualize=False
+            images=[(img0, img1)], prompt_type="centroid", visualize=False
         )
         end_time = time.time()
         print(
@@ -608,7 +608,8 @@ if __name__ == "__main__":
             [f"{np.degrees(a):.2f}" for a in tip_angles[0]],
         )
         all_shape_data.append(tip_positions[0] + tip_angles[0])
-        # break
+        # if num == 3:
+        #     break
 
     pd.DataFrame(
         all_shape_data,
