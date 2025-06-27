@@ -290,18 +290,19 @@ class CatheterShapeEstimator:
                     )  # Label for the point TODO:
                 elif prompt_type == "centroid":
                     # Use centroids as prompts
-                    red_mask = class_mask == 1  # Red class mask
-                    other_mask = class_mask == 2  # Other class mask
-                    red_mask = self.open_close_mask(
-                        red_mask, kernel_size=5
+                    cath_mask = class_mask == 1  # cath class mask
+                    tip_mask = class_mask == 2  # tip class mask
+                    tip_mask = self.open_close_mask(
+                        tip_mask, kernel_size=5
                     )  # Morphological operations to clean mask
-                    other_mask = self.open_close_mask(
-                        other_mask, kernel_size=5
+                    cath_mask = self.open_close_mask(
+                        cath_mask, kernel_size=5
                     )  # Morphological operations to clean mask
-                    red_centroid = self.get_centroid(red_mask)
-                    other_centroid = self.get_centroid(other_mask)
-                    point_coords = np.array([red_centroid, other_centroid])
-                    point_labels = np.array([1, 1])
+                    # tip_centroid = self.get_centroid(tip_mask)
+                    cath_centroid = self.get_centroid(cath_mask)
+                    # point_coords = np.array([tip_centroid, cath_centroid])
+                    point_coords = np.array([cath_centroid])
+                    point_labels = np.ones(point_coords.shape[0])
 
                 # SAM segmentation
                 self.sam_predictor.set_image(image_cropped)
