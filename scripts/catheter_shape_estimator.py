@@ -280,7 +280,7 @@ class CatheterShapeEstimator:
                 point_labels = None
                 if prompt_type == "max_prob":
                     # Run SAM predictor using max probability pixel as prompt
-                    labels = [2]
+                    labels = [1, 2]
                     point_coords = np.flip(
                         max_prob_indices[labels], axis=1
                     )  # Use red and 'other' pixels as foreground prompts
