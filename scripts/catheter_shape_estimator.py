@@ -16,6 +16,7 @@ from camera_calib_data import *
 from skimage.morphology import skeletonize
 from scipy.interpolate import splprep, splev
 import pdb
+import traceback
 
 
 class CatheterShapeEstimator:
@@ -260,6 +261,8 @@ class CatheterShapeEstimator:
             list: Estimated tip positions in the format [(x, y, z), ...].
             list: Corresponding angles (theta, phi) for each tip position.
         """
+        # # Intentionally raise error to test error handling
+        # raise Exception("Test error handling")
         tip_positions = []
         angles = []
         for image_pair in images:
@@ -562,7 +565,7 @@ if __name__ == "__main__":
     estimator = CatheterShapeEstimator(force_cpu=False)
 
     # Load example images (replace with actual image loading)
-    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v4_06_26_25_T3"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v4_07_01_25_T2"
     # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\NA_06_13_25_test"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
@@ -591,23 +594,29 @@ if __name__ == "__main__":
         img1 = cv2.imread(os.path.join(img_dir, "cam_1", path1))
 
         # Estimate pose
-        start_time = time.time()
-        tip_positions, tip_angles = estimator.estimate_tip_pose(
-            images=[(img0, img1)], prompt_type="centroid", visualize=False
-        )
-        end_time = time.time()
-        print(
-            f"Time taken for estimation: {end_time - start_time:.2f} seconds"
-        )
-        print(
-            "Estimated tip position (mm): ",
-            [f"{x*1e3:.2f}" for x in tip_positions[0]],
-        )
-        print(
-            "Estimated angles (theta, phi): ",
-            [f"{np.degrees(a):.2f}" for a in tip_angles[0]],
-        )
-        all_shape_data.append(tip_positions[0] + tip_angles[0])
+        try:
+            start_time = time.time()
+            tip_positions, tip_angles = estimator.estimate_tip_pose(
+                images=[(img0, img1)], prompt_type="centroid", visualize=False
+            )
+            end_time = time.time()
+            print(
+                f"Time taken for estimation: {end_time - start_time:.2f} seconds"
+            )
+            print(
+                "Estimated tip position (mm): ",
+                [f"{x*1e3:.2f}" for x in tip_positions[0]],
+            )
+            print(
+                "Estimated angles (theta, phi): ",
+                [f"{np.degrees(a):.2f}" for a in tip_angles[0]],
+            )
+            all_shape_data.append(tip_positions[0] + tip_angles[0])
+        except Exception as e:
+            print(f"Error processing image pair {num+1}: {e}")
+            traceback.print_exc()
+            all_shape_data.append([-999, -999, -999, -999, -999])  # Placeholder for error
+
         # if num == 3:
         #     break
 
