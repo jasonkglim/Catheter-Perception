@@ -251,7 +251,8 @@ class CatheterShapeEstimator:
         return spline, sorted_skeleton
 
     def estimate_tip_pose(
-        self, images=[], prompt_type="max_prob", visualize=False
+        self, images=[], prompt_type="max_prob", visualize=False,
+        save_path=None
     ):
         """'
         Estimate the pose of the cathetertip in the given images.
@@ -356,7 +357,7 @@ class CatheterShapeEstimator:
             tip_positions.append(tip_pos)
             angles.append(self.tip_pos_to_angles([tip_pos])[0])
             # Visualize results
-            if visualize:
+            if visualize or :
                 self.visualize_results(
                     image_pair[0], image_pair[1], voxel_map, center_spline
                 )
@@ -379,7 +380,8 @@ class CatheterShapeEstimator:
             angles.append((theta, phi))
         return angles
 
-    def visualize_results(self, img0, img1, voxel_map, center_spline):
+    def visualize_results(self, img0, img1, voxel_map, center_spline,
+                          show, save_path=None):
         """
         Visualize the results of the pose estimation.
         Args:
@@ -423,7 +425,10 @@ class CatheterShapeEstimator:
             s=marker_size,
             edgecolor="k",
         )
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "_voxel_map_3d.png")
+        if show:
+            plt.show()
 
         # Visualize Centerline
         fig = plt.figure(figsize=(8, 6))
@@ -542,7 +547,10 @@ class CatheterShapeEstimator:
         plt.imshow(cv2.cvtColor(img0_vis, cv2.COLOR_BGR2RGB))
         plt.title("Projection on Camera 0")
         plt.axis("off")
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "_projection_cam0.png")
+        if show:
+            plt.show()
 
         # Visualize on cam1 image
         img1_vis = img1.copy()
@@ -555,7 +563,10 @@ class CatheterShapeEstimator:
         plt.imshow(cv2.cvtColor(img1_vis, cv2.COLOR_BGR2RGB))
         plt.title("Projection on Camera 1")
         plt.axis("off")
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path + "_projection_cam1.png")
+        if show:
+            plt.show()
 
         return
 
@@ -583,6 +594,9 @@ if __name__ == "__main__":
     cam0_image_files.sort(key=lambda name: int(name.split("_")[0]))
     cam1_image_files.sort(key=lambda name: int(name.split("_")[0]))
 
+    save_dir = os.path.join(base_dir, "pose_estimation_results")
+    os.makedirs(save_dir, exist_ok=True)
+
     all_shape_data = []
     for num, (path0, path1) in enumerate(
         zip(cam0_image_files, cam1_image_files)
@@ -592,12 +606,13 @@ if __name__ == "__main__":
 
         img0 = cv2.imread(os.path.join(img_dir, "cam_0", path0))
         img1 = cv2.imread(os.path.join(img_dir, "cam_1", path1))
-
+        save_path = os.path.join(save_dir, f"{num}")
         # Estimate pose
         try:
             start_time = time.time()
             tip_positions, tip_angles = estimator.estimate_tip_pose(
-                images=[(img0, img1)], prompt_type="centroid", visualize=False
+                images=[(img0, img1)], prompt_type="centroid", visualize=True,
+                save_path=save_path
             )
             end_time = time.time()
             print(
