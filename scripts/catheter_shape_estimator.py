@@ -357,9 +357,9 @@ class CatheterShapeEstimator:
             tip_positions.append(tip_pos)
             angles.append(self.tip_pos_to_angles([tip_pos])[0])
             # Visualize results
-            if visualize or :
+            if visualize:
                 self.visualize_results(
-                    image_pair[0], image_pair[1], voxel_map, center_spline
+                    image_pair[0], image_pair[1], voxel_map, center_spline, save_path
                 )
 
         return tip_positions, angles
@@ -381,7 +381,7 @@ class CatheterShapeEstimator:
         return angles
 
     def visualize_results(self, img0, img1, voxel_map, center_spline,
-                          show, save_path=None):
+                          save_path=None):
         """
         Visualize the results of the pose estimation.
         Args:
@@ -427,73 +427,71 @@ class CatheterShapeEstimator:
         )
         if save_path is not None:
             plt.savefig(save_path + "_voxel_map_3d.png")
-        if show:
-            plt.show()
 
-        # Visualize Centerline
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111, projection="3d")
+        # # Visualize Centerline
+        # fig = plt.figure(figsize=(8, 6))
+        # ax = fig.add_subplot(111, projection="3d")
 
-        # Plot centerline
-        ax.plot(
-            centerline_points[:, 0],
-            centerline_points[:, 1],
-            centerline_points[:, 2],
-            "b.-",
-            label="Centerline",
-        )
+        # # Plot centerline
+        # ax.plot(
+        #     centerline_points[:, 0],
+        #     centerline_points[:, 1],
+        #     centerline_points[:, 2],
+        #     "b.-",
+        #     label="Centerline",
+        # )
 
-        # Plot base and tip
-        ax.scatter(*base_coord, color="g", s=80, label="Base")
-        ax.scatter(*tip_coord, color="r", s=80, label="Tip")
+        # # Plot base and tip
+        # ax.scatter(*base_coord, color="g", s=80, label="Base")
+        # ax.scatter(*tip_coord, color="r", s=80, label="Tip")
 
-        # Set axes limits
-        ax.set_xlim([x_min, x_max])
-        ax.set_ylim([y_min, y_max])
-        ax.set_zlim([z_min, z_max])
+        # # Set axes limits
+        # ax.set_xlim([x_min, x_max])
+        # ax.set_ylim([y_min, y_max])
+        # ax.set_zlim([z_min, z_max])
 
-        ax.set_xlabel("X (m)")
-        ax.set_ylabel("Y (m)")
-        ax.set_zlabel("Z (m)")
-        ax.set_title("Catheter Centerline and Tip Pose")
-        ax.legend()
-        plt.tight_layout()
-        plt.show()
+        # ax.set_xlabel("X (m)")
+        # ax.set_ylabel("Y (m)")
+        # ax.set_zlabel("Z (m)")
+        # ax.set_title("Catheter Centerline and Tip Pose")
+        # ax.legend()
+        # plt.tight_layout()
+        # plt.show()
 
-        # Top-down view: projection onto the XY plane
-        fig2 = plt.figure(figsize=(6, 6))
-        ax2 = fig2.add_subplot(111)
+        # # Top-down view: projection onto the XY plane
+        # fig2 = plt.figure(figsize=(6, 6))
+        # ax2 = fig2.add_subplot(111)
 
-        # Plot all occupied points as background
-        ax2.scatter(
-            occupied_points[:, 0],
-            occupied_points[:, 1],
-            c="lightgray",
-            s=5,
-            label="Occupied Voxels",
-        )
+        # # Plot all occupied points as background
+        # ax2.scatter(
+        #     occupied_points[:, 0],
+        #     occupied_points[:, 1],
+        #     c="lightgray",
+        #     s=5,
+        #     label="Occupied Voxels",
+        # )
 
-        # Plot centerline
-        ax2.plot(
-            centerline_points[:, 0],
-            centerline_points[:, 1],
-            "b.-",
-            label="Centerline",
-        )
+        # # Plot centerline
+        # ax2.plot(
+        #     centerline_points[:, 0],
+        #     centerline_points[:, 1],
+        #     "b.-",
+        #     label="Centerline",
+        # )
 
-        # Plot base and tip
-        ax2.scatter(
-            base_coord[0], base_coord[1], color="g", s=80, label="Base"
-        )
-        ax2.scatter(tip_coord[0], tip_coord[1], color="r", s=80, label="Tip")
+        # # Plot base and tip
+        # ax2.scatter(
+        #     base_coord[0], base_coord[1], color="g", s=80, label="Base"
+        # )
+        # ax2.scatter(tip_coord[0], tip_coord[1], color="r", s=80, label="Tip")
 
-        ax2.set_xlabel("X (m)")
-        ax2.set_ylabel("Y (m)")
-        ax2.set_title("Top-Down View (XY Projection)")
-        ax2.set_aspect("equal")
-        ax2.legend()
-        plt.tight_layout()
-        plt.show()
+        # ax2.set_xlabel("X (m)")
+        # ax2.set_ylabel("Y (m)")
+        # ax2.set_title("Top-Down View (XY Projection)")
+        # ax2.set_aspect("equal")
+        # ax2.legend()
+        # plt.tight_layout()
+        # plt.show()
 
         # Visualize centerline projection onto images
         def project_points(
@@ -549,8 +547,6 @@ class CatheterShapeEstimator:
         plt.axis("off")
         if save_path is not None:
             plt.savefig(save_path + "_projection_cam0.png")
-        if show:
-            plt.show()
 
         # Visualize on cam1 image
         img1_vis = img1.copy()
@@ -565,8 +561,8 @@ class CatheterShapeEstimator:
         plt.axis("off")
         if save_path is not None:
             plt.savefig(save_path + "_projection_cam1.png")
-        if show:
-            plt.show()
+
+        plt.close("all")  # Close all figures to free memory
 
         return
 
