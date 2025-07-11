@@ -359,7 +359,9 @@ class CatheterShapeEstimator:
             # Visualize results
             if visualize:
                 self.visualize_results(
-                    image_pair[0], image_pair[1], voxel_map, center_spline, save_path
+                    image_pair[0], image_pair[1],
+                    voxel_map, center_spline, seg_masks,
+                    save_path
                 )
 
         return tip_positions, angles
@@ -572,7 +574,7 @@ if __name__ == "__main__":
     estimator = CatheterShapeEstimator(force_cpu=False)
 
     # Load example images (replace with actual image loading)
-    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v4_07_01_25_T2"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v4_07_11_25_T1"
     # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\NA_06_13_25_test"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
