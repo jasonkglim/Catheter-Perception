@@ -324,6 +324,20 @@ class CatheterShapeEstimator:
                     0
                 ].astype(np.uint8)
 
+                # Visualize SAM masks if needed
+                if visualize:
+                    plt.figure(figsize=(8, 6))
+                    plt.imshow(cv2.cvtColor(image.copy(), cv2.COLOR_BGR2RGB))
+                    plt.imshow(sam_mask, alpha=0.5, cmap="jet")
+                    # Show input points on the image
+                    for pt in point_coords.astype(int):
+                        plt.scatter(pt[0], pt[1], c="lime", s=80, marker="x", label="Input Point")
+                    plt.title(f"Segmented Image {cam_num}")
+                    plt.axis("off")
+                    if save_path is not None:
+                        plt.savefig(save_path + f"_segmented_cam{cam_num}.png")
+                    # plt.show()
+
                 seg_masks.append(sam_mask)
 
             # Perform voxel carving
@@ -383,7 +397,7 @@ class CatheterShapeEstimator:
         return angles
 
     def visualize_results(self, img0, img1, voxel_map, center_spline,
-                          save_path=None):
+                          seg_masks, save_path=None):
         """
         Visualize the results of the pose estimation.
         Args:
@@ -429,6 +443,8 @@ class CatheterShapeEstimator:
         )
         if save_path is not None:
             plt.savefig(save_path + "_voxel_map_3d.png")
+
+        
 
         # # Visualize Centerline
         # fig = plt.figure(figsize=(8, 6))
