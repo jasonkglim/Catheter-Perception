@@ -26,8 +26,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -50,8 +50,8 @@ class CatheterShapeEstimator:
         self.voxel_map_setup(voxel_size=voxel_size, voxel_range=voxel_range)
 
         # Load pixel color classification model
-        # classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_blue_model.pkl"
-        classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_blue_model.pkl"
+        classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_purplered_model.pkl"
+        # classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_blue_model.pkl"
         with open(classifier_path, "rb") as f:
             self.pixel_classifier = pickle.load(f)
 
@@ -251,8 +251,11 @@ class CatheterShapeEstimator:
         return spline, sorted_skeleton
 
     def estimate_tip_pose(
-        self, images=[], prompt_type="max_prob", visualize=False,
-        save_path=None
+        self,
+        images=[],
+        prompt_type="max_prob",
+        visualize=False,
+        save_path=None,
     ):
         """'
         Estimate the pose of the cathetertip in the given images.
@@ -331,7 +334,14 @@ class CatheterShapeEstimator:
                     plt.imshow(sam_mask, alpha=0.5, cmap="jet")
                     # Show input points on the image
                     for pt in point_coords.astype(int):
-                        plt.scatter(pt[0], pt[1], c="lime", s=80, marker="x", label="Input Point")
+                        plt.scatter(
+                            pt[0],
+                            pt[1],
+                            c="lime",
+                            s=80,
+                            marker="x",
+                            label="Input Point",
+                        )
                     plt.title(f"Segmented Image {cam_num}")
                     plt.axis("off")
                     if save_path is not None:
@@ -373,9 +383,12 @@ class CatheterShapeEstimator:
             # Visualize results
             if visualize:
                 self.visualize_results(
-                    image_pair[0], image_pair[1],
-                    voxel_map, center_spline, seg_masks,
-                    save_path
+                    image_pair[0],
+                    image_pair[1],
+                    voxel_map,
+                    center_spline,
+                    seg_masks,
+                    save_path,
                 )
 
         return tip_positions, angles
@@ -396,8 +409,9 @@ class CatheterShapeEstimator:
             angles.append((theta, phi))
         return angles
 
-    def visualize_results(self, img0, img1, voxel_map, center_spline,
-                          seg_masks, save_path=None):
+    def visualize_results(
+        self, img0, img1, voxel_map, center_spline, seg_masks, save_path=None
+    ):
         """
         Visualize the results of the pose estimation.
         Args:
@@ -443,8 +457,6 @@ class CatheterShapeEstimator:
         )
         if save_path is not None:
             plt.savefig(save_path + "_voxel_map_3d.png")
-
-        
 
         # # Visualize Centerline
         # fig = plt.figure(figsize=(8, 6))
@@ -625,8 +637,10 @@ if __name__ == "__main__":
         try:
             start_time = time.time()
             tip_positions, tip_angles = estimator.estimate_tip_pose(
-                images=[(img0, img1)], prompt_type="centroid", visualize=True,
-                save_path=save_path
+                images=[(img0, img1)],
+                prompt_type="centroid",
+                visualize=True,
+                save_path=save_path,
             )
             end_time = time.time()
             print(
@@ -644,7 +658,9 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error processing image pair {num+1}: {e}")
             traceback.print_exc()
-            all_shape_data.append([-999, -999, -999, -999, -999])  # Placeholder for error
+            all_shape_data.append(
+                [-999, -999, -999, -999, -999]
+            )  # Placeholder for error
 
         # if num == 3:
         #     break
