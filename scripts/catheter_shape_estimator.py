@@ -26,8 +26,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -50,8 +50,8 @@ class CatheterShapeEstimator:
         self.voxel_map_setup(voxel_size=voxel_size, voxel_range=voxel_range)
 
         # Load pixel color classification model
-        # classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_purplered_model.pkl"
-        classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_purplered_model.pkl"
+        classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_purplered_model.pkl"
+        # classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_purplered_model.pkl"
         with open(classifier_path, "rb") as f:
             self.pixel_classifier = pickle.load(f)
 
@@ -310,6 +310,14 @@ class CatheterShapeEstimator:
                     # point_coords = np.array([tip_centroid, cath_centroid])
                     point_coords = np.array([cath_centroid])
                     point_labels = np.ones(point_coords.shape[0])
+                elif prompt_type == "max_prob_centroid":
+                    # Use centroid of main cath region and max prob pixel of tip region
+                    cath_mask = class_mask == 1  # cath class mask
+                    cath_mask = self.open_close_mask(cath_mask, kernel_size=5)
+                    cath_centroid = self.get_centroid(cath_mask)
+                    max_prob_tip = np.flip(max_prob_indices[2])
+                    point_coords = np.array([cath_centroid, max_prob_tip])
+                    point_labels = np.ones(point_coords.shape[0])
 
                 # SAM segmentation
                 self.sam_predictor.set_image(image_cropped)
@@ -334,6 +342,9 @@ class CatheterShapeEstimator:
                     plt.imshow(sam_mask, alpha=0.5, cmap="jet")
                     # Show input points on the image
                     for pt in point_coords.astype(int):
+                        # correct pt for cropped image
+                        pt[0] += box[0]
+                        pt[1] += box[1]
                         plt.scatter(
                             pt[0],
                             pt[1],
