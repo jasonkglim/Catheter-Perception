@@ -17,6 +17,7 @@ from skimage.morphology import skeletonize
 from scipy.interpolate import splprep, splev
 import pdb
 import traceback
+from scipy.spatial import cKDTree
 
 
 class CatheterShapeEstimator:
@@ -221,6 +222,7 @@ class CatheterShapeEstimator:
         # Compute base point from min z slice centroid
         occupied_voxels = np.argwhere(voxel_map == 1)
         occupied_points = occupied_voxels * self.voxel_size - self.voxel_origin
+        self.occupied_points = occupied_points
         z_values = occupied_points[:, 2]
         unique_z = np.unique(z_values)
         min_z = np.min(unique_z)
@@ -268,6 +270,7 @@ class CatheterShapeEstimator:
         # # Intentionally raise error to test error handling
         # raise Exception("Test error handling")
         tip_positions = []
+        base_positions = []
         angles = []
         for image_pair in images:
 
@@ -379,17 +382,26 @@ class CatheterShapeEstimator:
                     ]
                 ):
                     voxel_map[i, j, k] = 1
-
-            center_spline, _ = self.get_center_spline(voxel_map)
+            occupied_voxels = np.argwhere(voxel_map == 1)
+            occupied_points = (
+                occupied_voxels * self.voxel_size - self.voxel_origin
+            )
+            self.occupied_points = occupied_points
+            # center_spline, _ = self.get_center_spline(voxel_map)
+            center_spline = self.compute_centerline(voxel_map)
+            # sort by z
+            center_spline = center_spline[np.argsort(center_spline[:, 2])]
+            # print(center_spline)
 
             # Compute tip position relative to base
-            spline_tip = center_spline[:, -1]
-            spline_base = center_spline[:, 0]
+            spline_tip = center_spline[-1, :]
+            spline_base = center_spline[0, :]
             tip_x = spline_tip[0] - spline_base[0]
             tip_y = spline_tip[1] - spline_base[1]
             tip_z = spline_tip[2] - spline_base[2]
             tip_pos = (tip_x, tip_y, tip_z)
-            tip_positions.append(tip_pos)
+            tip_positions.append(spline_tip)
+            base_positions.append(spline_base)
             angles.append(self.tip_pos_to_angles([tip_pos])[0])
             # Visualize results
             if visualize:
@@ -402,7 +414,7 @@ class CatheterShapeEstimator:
                     save_path,
                 )
 
-        return tip_positions, angles
+        return tip_positions, base_positions, angles
 
     def tip_pos_to_angles(self, tip_positions):
         """
@@ -419,6 +431,29 @@ class CatheterShapeEstimator:
             theta = np.pi - 2 * np.arctan2(z, np.sqrt(x**2 + y**2))
             angles.append((theta, phi))
         return angles
+
+    def compute_centerline(self, voxel_map, num_samples=200, radius=0.002):
+        """
+        Sample points from a tube-like 3D point cloud and find the local centroid
+        of neighbors to approximate the centerline.
+        """
+        occupied_voxels = np.argwhere(voxel_map == 1)
+        occupied_points = occupied_voxels * self.voxel_size - self.voxel_origin
+        tree = cKDTree(occupied_points)
+        sampled_idx = np.random.choice(
+            len(occupied_points), num_samples, replace=False
+        )
+        centerline_points = []
+
+        for idx in sampled_idx:
+            neighbors_idx = tree.query_ball_point(occupied_points[idx], radius)
+            if len(neighbors_idx) > 3:
+                local_points = occupied_points[neighbors_idx]
+                center = local_points.mean(axis=0)
+                centerline_points.append(center)
+        centerline_points = np.array(centerline_points).reshape(-1, 3)
+
+        return centerline_points
 
     def visualize_results(
         self, img0, img1, voxel_map, center_spline, seg_masks, save_path=None
@@ -438,9 +473,9 @@ class CatheterShapeEstimator:
         )
 
         # Convert base and tip coordinates to numpy arrays
-        base_coord = np.array(center_spline[:, 0])
-        tip_coord = np.array(center_spline[:, -1])
-        centerline_points = np.array(center_spline).T
+        base_coord = np.array(center_spline[0, :])
+        tip_coord = np.array(center_spline[-1, :])
+        centerline_points = np.array(center_spline)
 
         # Visualize voxel map in 3D
         fig = plt.figure()
@@ -610,11 +645,11 @@ class CatheterShapeEstimator:
 
 if __name__ == "__main__":
     # Example usage
-    estimator = CatheterShapeEstimator(force_cpu=False)
+    estimator = CatheterShapeEstimator(force_cpu=True)
 
     # Load example images (replace with actual image loading)
-    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v2_07_21_25_T1"
-    # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\NA_06_13_25_test"
+    # base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v2_07_21_25_T1"
+    base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v2_07_21_25_T1"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
     cam0_image_files = [
@@ -634,7 +669,10 @@ if __name__ == "__main__":
     save_dir = os.path.join(base_dir, "pose_estimation_results")
     os.makedirs(save_dir, exist_ok=True)
 
-    all_shape_data = []
+    # all_shape_data = []
+    all_base_positions = []
+    all_tip_positions = []
+    all_angles = []
     for num, (path0, path1) in enumerate(
         zip(cam0_image_files, cam1_image_files)
     ):
@@ -647,11 +685,13 @@ if __name__ == "__main__":
         # Estimate pose
         try:
             start_time = time.time()
-            tip_positions, tip_angles = estimator.estimate_tip_pose(
-                images=[(img0, img1)],
-                prompt_type="centroid",
-                visualize=True,
-                save_path=save_path,
+            tip_positions, base_positions, tip_angles = (
+                estimator.estimate_tip_pose(
+                    images=[(img0, img1)],
+                    prompt_type="max_prob_centroid",
+                    visualize=True,
+                    save_path=save_path,
+                )
             )
             end_time = time.time()
             print(
@@ -665,17 +705,27 @@ if __name__ == "__main__":
                 "Estimated angles (theta, phi): ",
                 [f"{np.degrees(a):.2f}" for a in tip_angles[0]],
             )
-            all_shape_data.append(tip_positions[0] + tip_angles[0])
+            # pdb.set_trace()  # Debugging breakpoint
+            all_tip_positions.append(tip_positions[0])
+            all_base_positions.append(base_positions[0])
+            all_angles.append(tip_angles[0])
+            # all_shape_data.append(tip_positions[0] + tip_angles[0])
         except Exception as e:
             print(f"Error processing image pair {num+1}: {e}")
             traceback.print_exc()
-            all_shape_data.append(
-                [-999, -999, -999, -999, -999]
-            )  # Placeholder for error
+            # all_shape_data.append(
+            #     [-999, -999, -999, -999, -999]
+            # )  # Placeholder for error
 
         # if num == 3:
         #     break
 
+    avg_base_position = np.mean(all_base_positions, axis=0)
+    print(f"Average base position (mm): {avg_base_position * 1e3}")
+    all_tip_positions = np.array(all_tip_positions)
+    all_angles = np.array(all_angles)
+    all_tip_positions = all_tip_positions - avg_base_position
+    all_shape_data = np.concatenate((all_tip_positions, all_angles), axis=1)
     pd.DataFrame(
         all_shape_data,
         columns=["tip_x", "tip_y", "tip_z", "theta", "phi"],
