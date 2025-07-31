@@ -7,12 +7,14 @@ from cv_bridge import CvBridge
 import subprocess
 
 # Ensure proper camera configurations
-cam0_device = f"/dev/cam0"
-cam1_device = f"/dev/cam1"
+cam0_device = "/dev/cam0"
+cam1_device = "/dev/cam1"
+cam2_device = "/dev/cam2"
 cam0_focus_value = 35
 cam1_focus_value = 75
-cap_frame_width = 1920
-cap_frame_height = 1080
+cam2_focus_value = 75
+cap_frame_width = 1280
+cap_frame_height = 720
 crop_box = [(593, 521, 528, 296),
             (593, 521, 528, 296)]  # (x, y, width, height) for each camera
 config_commands = {cam0_device: [
@@ -38,7 +40,19 @@ config_commands = {cam0_device: [
                     # f"v4l2-ctl -d {device} -c brightness=128",
                     # f"v4l2-ctl -d {device} -c contrast=128",
                     # f"v4l2-ctl -d {device} -c saturation=128",
-                    ]
+                    ],
+                cam2_device: [
+                    f"v4l2-ctl -d {cam2_device} -c focus_automatic_continuous=0",
+                    f"v4l2-ctl -d {cam2_device} -c auto_exposure=3",
+                    f"v4l2-ctl -d {cam2_device} -c focus_absolute={cam2_focus_value}",
+                    # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
+                    # f"v4l2-ctl -d {device} -c gain=0",
+                    # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
+                    # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
+                    # f"v4l2-ctl -d {device} -c brightness=128",
+                    # f"v4l2-ctl -d {device} -c contrast=128",
+                    # f"v4l2-ctl -d {device} -c saturation=128",
+                    ],
                 }
 
 def configure_camera(devices, config_commands):
@@ -54,27 +68,26 @@ def configure_camera(devices, config_commands):
 def publish_raw_images():
     rospy.init_node('raw_image_publisher', anonymous=True)
 
-    # Publishers for the two cameras
-    pub_cam0 = rospy.Publisher('/camera0/image_raw', Image, queue_size=10)
-    pub_cam1 = rospy.Publisher('/camera1/image_raw', Image, queue_size=10)
+    # # Publishers for the two cameras
+    # pub_cam0 = rospy.Publisher('/camera0/image_raw', Image, queue_size=10)
+    # pub_cam1 = rospy.Publisher('/camera1/image_raw', Image, queue_size=10)
+    # pub_cam2 = rospy.Publisher('/camera2/image_raw', Image, queue_size=10)
 
-    # Open video capture for both cameras with default settings first
-    cap_cam0 = cv2.VideoCapture(cam0_device, cv2.CAP_V4L2)
-    cap_cam1 = cv2.VideoCapture(cam1_device, cv2.CAP_V4L2)
-    # Set the frame width and height
-    cap_cam0.set(cv2.CAP_PROP_FRAME_WIDTH, cap_frame_width)
-    cap_cam0.set(cv2.CAP_PROP_FRAME_HEIGHT, cap_frame_height)
-    cap_cam1.set(cv2.CAP_PROP_FRAME_WIDTH, cap_frame_width)
-    cap_cam1.set(cv2.CAP_PROP_FRAME_HEIGHT, cap_frame_height)
-
-
-    # Check if cameras are opened successfully
-    if not cap_cam0.isOpened():
-        rospy.logerr("Failed to open /dev/video0")
-        return
-    if not cap_cam1.isOpened():
-        rospy.logerr("Failed to open /dev/video2")
-        return
+    # Open video capture for all cameras with default settings first
+    desired_cams = [0, 1, 2]
+    devices = [f"/dev/cam{cam}" for cam in desired_cams]
+    caps = []
+    pubs = []
+    for i, device in enumerate(devices):
+        cap = cv2.VideoCapture(device, cv2.CAP_V4L2)
+        if not cap.isOpened():
+            rospy.logerr(f"Failed to open {device}")
+            return
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, cap_frame_width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cap_frame_height)
+        caps.append(cap)
+        pub = rospy.Publisher(f'/camera{i}/image_raw', Image, queue_size=10)
+        pubs.append(pub)
 
     bridge = CvBridge()
     rate = rospy.Rate(10)  # 30 Hz
@@ -85,37 +98,23 @@ def publish_raw_images():
 
         # Configure manual camera settings
         if not configure_yet and (rospy.Time.now() - start_time) > configure_wait_time:
-            configure_camera([cam0_device, cam1_device], config_commands)
+            configure_camera(devices, config_commands)
             configure_yet = True
             rospy.loginfo("Camera configuration complete!")
 
-
-        ret0, frame0 = cap_cam0.read()
-        ret1, frame1 = cap_cam1.read()
-
-        if ret0:
-            # Crop the frame for camera 0
-            x, y, width, height = crop_box[0]
-            frame0 = frame0[y:y+height, x:x+width]
-            msg_cam0 = bridge.cv2_to_imgmsg(frame0, encoding="bgr8")
-            pub_cam0.publish(msg_cam0)
-        else:
-            rospy.logwarn("Failed to read frame from /dev/video0")
-
-        if ret1:
-            # Crop the frame for camera 1
-            x, y, width, height = crop_box[1]
-            frame1 = frame1[y:y+height, x:x+width]
-            msg_cam1 = bridge.cv2_to_imgmsg(frame1, encoding="bgr8")
-            pub_cam1.publish(msg_cam1)
-        else:
-            rospy.logwarn("Failed to read frame from /dev/video2")
+        for i, cap in enumerate(caps):
+            ret, frame = cap.read()
+            if not ret:
+                rospy.logerr("Failed to read frame from camera")
+            else:
+                msg = bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                pubs[i].publish(msg)
 
         rate.sleep()
 
     # Release resources
-    cap_cam0.release()
-    cap_cam1.release()
+    for cap in caps:
+        cap.release()
 
 if __name__ == '__main__':
     try:
