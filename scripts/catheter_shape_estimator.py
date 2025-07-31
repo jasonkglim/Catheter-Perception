@@ -27,8 +27,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -51,8 +51,8 @@ class CatheterShapeEstimator:
         self.voxel_map_setup(voxel_size=voxel_size, voxel_range=voxel_range)
 
         # Load pixel color classification model
-        classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_purplered_model.pkl"
-        # classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_purplered_model.pkl"
+        # classifier_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification\\rf_3class_purplered_model.pkl"
+        classifier_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification/rf_3class_purplered_model.pkl"
         with open(classifier_path, "rb") as f:
             self.pixel_classifier = pickle.load(f)
 
