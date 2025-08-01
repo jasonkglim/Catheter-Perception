@@ -15,45 +15,49 @@ cam1_focus_value = 75
 cam2_focus_value = 75
 cap_frame_width = 1280
 cap_frame_height = 720
-crop_box = [(593, 521, 528, 296),
-            (593, 521, 528, 296)]  # (x, y, width, height) for each camera
-config_commands = {cam0_device: [
-                    f"v4l2-ctl -d {cam0_device} -c focus_automatic_continuous=0",
-                    f"v4l2-ctl -d {cam0_device} -c auto_exposure=3",
-                    f"v4l2-ctl -d {cam0_device} -c focus_absolute={cam0_focus_value}",
-                    # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
-                    # f"v4l2-ctl -d {device} -c gain=0",
-                    # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
-                    # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
-                    # f"v4l2-ctl -d {device} -c brightness=128",
-                    # f"v4l2-ctl -d {device} -c contrast=128",
-                    # f"v4l2-ctl -d {device} -c saturation=128",
-                    ],
-                cam1_device: [
-                    f"v4l2-ctl -d {cam1_device} -c focus_automatic_continuous=0",
-                    f"v4l2-ctl -d {cam1_device} -c auto_exposure=3",
-                    f"v4l2-ctl -d {cam1_device} -c focus_absolute={cam1_focus_value}",
-                    # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
-                    # f"v4l2-ctl -d {device} -c gain=0",
-                    # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
-                    # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
-                    # f"v4l2-ctl -d {device} -c brightness=128",
-                    # f"v4l2-ctl -d {device} -c contrast=128",
-                    # f"v4l2-ctl -d {device} -c saturation=128",
-                    ],
-                cam2_device: [
-                    f"v4l2-ctl -d {cam2_device} -c focus_automatic_continuous=0",
-                    f"v4l2-ctl -d {cam2_device} -c auto_exposure=3",
-                    f"v4l2-ctl -d {cam2_device} -c focus_absolute={cam2_focus_value}",
-                    # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
-                    # f"v4l2-ctl -d {device} -c gain=0",
-                    # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
-                    # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
-                    # f"v4l2-ctl -d {device} -c brightness=128",
-                    # f"v4l2-ctl -d {device} -c contrast=128",
-                    # f"v4l2-ctl -d {device} -c saturation=128",
-                    ],
-                }
+crop_box = [
+    (593, 521, 528, 296),
+    (593, 521, 528, 296),
+]  # (x, y, width, height) for each camera
+config_commands = {
+    cam0_device: [
+        f"v4l2-ctl -d {cam0_device} -c focus_automatic_continuous=0",
+        f"v4l2-ctl -d {cam0_device} -c auto_exposure=3",
+        f"v4l2-ctl -d {cam0_device} -c focus_absolute={cam0_focus_value}",
+        # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
+        # f"v4l2-ctl -d {device} -c gain=0",
+        # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
+        # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
+        # f"v4l2-ctl -d {device} -c brightness=128",
+        # f"v4l2-ctl -d {device} -c contrast=128",
+        # f"v4l2-ctl -d {device} -c saturation=128",
+    ],
+    cam1_device: [
+        f"v4l2-ctl -d {cam1_device} -c focus_automatic_continuous=0",
+        f"v4l2-ctl -d {cam1_device} -c auto_exposure=3",
+        f"v4l2-ctl -d {cam1_device} -c focus_absolute={cam1_focus_value}",
+        # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
+        # f"v4l2-ctl -d {device} -c gain=0",
+        # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
+        # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
+        # f"v4l2-ctl -d {device} -c brightness=128",
+        # f"v4l2-ctl -d {device} -c contrast=128",
+        # f"v4l2-ctl -d {device} -c saturation=128",
+    ],
+    cam2_device: [
+        f"v4l2-ctl -d {cam2_device} -c focus_automatic_continuous=0",
+        f"v4l2-ctl -d {cam2_device} -c auto_exposure=3",
+        f"v4l2-ctl -d {cam2_device} -c focus_absolute={cam2_focus_value}",
+        # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
+        # f"v4l2-ctl -d {device} -c gain=0",
+        # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
+        # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
+        # f"v4l2-ctl -d {device} -c brightness=128",
+        # f"v4l2-ctl -d {device} -c contrast=128",
+        # f"v4l2-ctl -d {device} -c saturation=128",
+    ],
+}
+
 
 def configure_camera(devices, config_commands):
     for device in devices:
@@ -65,8 +69,9 @@ def configure_camera(devices, config_commands):
 
         print("Camera configuration complete!")
 
+
 def publish_raw_images():
-    rospy.init_node('raw_image_publisher', anonymous=True)
+    rospy.init_node("raw_image_publisher", anonymous=True)
 
     # # Publishers for the two cameras
     # pub_cam0 = rospy.Publisher('/camera0/image_raw', Image, queue_size=10)
@@ -86,18 +91,23 @@ def publish_raw_images():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, cap_frame_width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cap_frame_height)
         caps.append(cap)
-        pub = rospy.Publisher(f'/camera{i}/image_raw', Image, queue_size=10)
+        pub = rospy.Publisher(f"/cam{i}/image_raw", Image, queue_size=10)
         pubs.append(pub)
 
     bridge = CvBridge()
     rate = rospy.Rate(10)  # 30 Hz
-    configure_wait_time = rospy.Duration(2) # wait this many seconds to configure manual settings
+    configure_wait_time = rospy.Duration(
+        2
+    )  # wait this many seconds to configure manual settings
     configure_yet = False
     start_time = rospy.Time.now()
     while not rospy.is_shutdown():
 
         # Configure manual camera settings
-        if not configure_yet and (rospy.Time.now() - start_time) > configure_wait_time:
+        if (
+            not configure_yet
+            and (rospy.Time.now() - start_time) > configure_wait_time
+        ):
             configure_camera(devices, config_commands)
             configure_yet = True
             rospy.loginfo("Camera configuration complete!")
@@ -108,7 +118,10 @@ def publish_raw_images():
                 rospy.logerr("Failed to read frame from camera")
             else:
                 msg = bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                pubs[i].publish(msg)
+                if configure_yet:
+                    msg.header.stamp = rospy.Time.now()
+                    msg.header.frame_id = f"cam{i}"
+                    pubs[i].publish(msg)
 
         rate.sleep()
 
@@ -116,7 +129,8 @@ def publish_raw_images():
     for cap in caps:
         cap.release()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         publish_raw_images()
     except rospy.ROSInterruptException:
