@@ -7,8 +7,8 @@ import numpy as np
 # Parameters for the ChArUco board
 SQUARE_SIZE_MM = 6  # Desired square size in mm
 MARKER_SIZE_MM = 4  # Desired marker size in mm
-SQUARES_X = 10  # Number of squares along x-axis
-SQUARES_Y = 10  # Number of squares along y-axis
+SQUARES_X = 8  # Number of squares along x-axis
+SQUARES_Y = 8  # Number of squares along y-axis
 MARGIN_MM = 10  # Margin around the board
 
 # Create the ArUco dictionary

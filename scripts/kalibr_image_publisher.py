@@ -10,79 +10,50 @@ import subprocess
 cam0_device = "/dev/cam0"
 cam1_device = "/dev/cam1"
 cam2_device = "/dev/cam2"
-cam0_focus_value = 35
-cam1_focus_value = 75
-cam2_focus_value = 75
+cam0_focus_value = 40
+cam1_focus_value = 70
+cam2_focus_value = 80
 cap_frame_width = 1280
 cap_frame_height = 720
 crop_box = [
     (593, 521, 528, 296),
     (593, 521, 528, 296),
-]  # (x, y, width, height) for each camera
+]  # Unused, but left here for optional cropping
 config_commands = {
     cam0_device: [
         f"v4l2-ctl -d {cam0_device} -c focus_automatic_continuous=0",
         f"v4l2-ctl -d {cam0_device} -c auto_exposure=3",
         f"v4l2-ctl -d {cam0_device} -c focus_absolute={cam0_focus_value}",
-        # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
-        # f"v4l2-ctl -d {device} -c gain=0",
-        # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
-        # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
-        # f"v4l2-ctl -d {device} -c brightness=128",
-        # f"v4l2-ctl -d {device} -c contrast=128",
-        # f"v4l2-ctl -d {device} -c saturation=128",
     ],
     cam1_device: [
         f"v4l2-ctl -d {cam1_device} -c focus_automatic_continuous=0",
         f"v4l2-ctl -d {cam1_device} -c auto_exposure=3",
         f"v4l2-ctl -d {cam1_device} -c focus_absolute={cam1_focus_value}",
-        # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
-        # f"v4l2-ctl -d {device} -c gain=0",
-        # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
-        # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
-        # f"v4l2-ctl -d {device} -c brightness=128",
-        # f"v4l2-ctl -d {device} -c contrast=128",
-        # f"v4l2-ctl -d {device} -c saturation=128",
     ],
     cam2_device: [
         f"v4l2-ctl -d {cam2_device} -c focus_automatic_continuous=0",
         f"v4l2-ctl -d {cam2_device} -c auto_exposure=3",
         f"v4l2-ctl -d {cam2_device} -c focus_absolute={cam2_focus_value}",
-        # f"v4l2-ctl -d {device} -c exposure_time_absolute=333",
-        # f"v4l2-ctl -d {device} -c gain=0",
-        # f"v4l2-ctl -d {device} -c white_balance_automatic=0",
-        # f"v4l2-ctl -d {device} -c white_balance_temperature=4675",
-        # f"v4l2-ctl -d {device} -c brightness=128",
-        # f"v4l2-ctl -d {device} -c contrast=128",
-        # f"v4l2-ctl -d {device} -c saturation=128",
     ],
 }
 
 
 def configure_camera(devices, config_commands):
     for device in devices:
-
         print(f"Configuring camera on {device}...")
-
         for command in config_commands[device]:
             subprocess.run(command, shell=True, check=True)
-
         print("Camera configuration complete!")
 
 
 def publish_raw_images():
     rospy.init_node("raw_image_publisher", anonymous=True)
 
-    # # Publishers for the two cameras
-    # pub_cam0 = rospy.Publisher('/camera0/image_raw', Image, queue_size=10)
-    # pub_cam1 = rospy.Publisher('/camera1/image_raw', Image, queue_size=10)
-    # pub_cam2 = rospy.Publisher('/camera2/image_raw', Image, queue_size=10)
-
-    # Open video capture for all cameras with default settings first
     desired_cams = [0, 1, 2]
     devices = [f"/dev/cam{cam}" for cam in desired_cams]
     caps = []
     pubs = []
+
     for i, device in enumerate(devices):
         cap = cv2.VideoCapture(device, cv2.CAP_V4L2)
         if not cap.isOpened():
@@ -95,39 +66,49 @@ def publish_raw_images():
         pubs.append(pub)
 
     bridge = CvBridge()
-    rate = rospy.Rate(10)  # 30 Hz
-    configure_wait_time = rospy.Duration(
-        2
-    )  # wait this many seconds to configure manual settings
+    rate = rospy.Rate(5)
+    configure_wait_time = rospy.Duration(5)
     configure_yet = False
     start_time = rospy.Time.now()
-    while not rospy.is_shutdown():
 
-        # Configure manual camera settings
-        if (
-            not configure_yet
-            and (rospy.Time.now() - start_time) > configure_wait_time
-        ):
+    print("Press space bar in a camera window to start publishing and recording...")
+    start_publishing = False
+    while not rospy.is_shutdown():
+        if not configure_yet and (rospy.Time.now() - start_time) > configure_wait_time:
             configure_camera(devices, config_commands)
             configure_yet = True
             rospy.loginfo("Camera configuration complete!")
 
+        timestamp = rospy.Time.now()
         for i, cap in enumerate(caps):
             ret, frame = cap.read()
             if not ret:
                 rospy.logerr("Failed to read frame from camera")
-            else:
+                continue
+
+            frame_display = cv2.resize(frame, (cap_frame_width//2, cap_frame_height//2))
+            cv2.imshow(f"cam{i}", frame_display)
+
+            if start_publishing:
                 msg = bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                if configure_yet:
-                    msg.header.stamp = rospy.Time.now()
-                    msg.header.frame_id = f"cam{i}"
-                    pubs[i].publish(msg)
+                msg.header.stamp = timestamp
+                msg.header.frame_id = f"cam{i}"
+                pubs[i].publish(msg)
+ 
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
+            rospy.loginfo("Quitting...")
+            break
+        elif key == ord(" "):
+            start_publishing = True
+            rospy.loginfo("Starting image publishing loop...")
+
 
         rate.sleep()
 
-    # Release resources
     for cap in caps:
         cap.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
