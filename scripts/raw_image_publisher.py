@@ -10,7 +10,7 @@ import subprocess
 cam0_device = "/dev/cam0"
 cam1_device = "/dev/cam1"
 cam2_device = "/dev/cam2"
-cam0_focus_value = 40
+cam0_focus_value = 50
 cam1_focus_value = 70
 cam2_focus_value = 80
 cap_frame_width = 1280
