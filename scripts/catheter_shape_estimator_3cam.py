@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Python class for running pose estimation on a pair of images
 import cv2
 import numpy as np
@@ -51,8 +52,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -86,8 +87,8 @@ class CatheterShapeEstimator:
 
         # Load pixel color classification model
         self.pixel_classifiers = []
-        classifier_base_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification"
-        # classifier_base_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification"
+        # classifier_base_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification"
+        classifier_base_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification"
         # for i in range(3):
         #     classifier_path = os.path.join(
         #         classifier_base_path,
@@ -102,8 +103,8 @@ class CatheterShapeEstimator:
             self.pixel_classifier = pickle.load(f)
 
         # Load ref images for subtraction segmentation method
-        ref_img_dir = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\camera_calibration\\08-13-25\\test_calib_images"
-        # ref_img_dir = "/home/arclab/catkin_ws/src/Catheter-Perception/camera_calibration/08-14-25/test_calib_images"
+        # ref_img_dir = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\camera_calibration\\08-13-25\\test_calib_images"
+        ref_img_dir = "/home/arclab/catkin_ws/src/Catheter-Perception/camera_calibration/08-13-25/test_calib_images"
         self.ref_images = []
         for i in range(self.num_cams):
             ref_img_path = os.path.join(ref_img_dir, f"cam{i}_0.png")
@@ -1192,12 +1193,12 @@ class CatheterShapeEstimator:
 if __name__ == "__main__":
     # Example usage
     estimator = CatheterShapeEstimator(
-        force_cpu=True, voxel_range=0.05, voxel_size=0.0005
+        force_cpu=False, voxel_range=0.05, voxel_size=0.0005
     )
 
     # Load example images (replace with actual image loading)
-    # base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v1_rework_08_14_25_T3"
-    base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v1_rework_08_14_25_T3"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v1_rework_08_14_25_T3"
+    # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v1_rework_08_14_25_T3"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
     cam0_image_files = [
@@ -1275,8 +1276,8 @@ if __name__ == "__main__":
             errors.append(num)
             # Placeholder for error
 
-        if num == 3:
-            break
+        # if num == 3:
+        #     break
 
     avg_base_position = np.mean(all_base_positions, axis=0)
     print(f"Average base position (mm): {avg_base_position * 1e3}")
