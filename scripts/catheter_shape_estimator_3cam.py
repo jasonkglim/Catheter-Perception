@@ -21,6 +21,29 @@ from scipy.spatial import cKDTree
 from scipy import ndimage
 
 
+def predict_full_image(clf, img_bgr):
+    feats = to_features_from_bgr(img_bgr)  # HxWx9
+    H, W, _ = feats.shape
+    X = feats.reshape(-1, feats.shape[-1])
+    y_proba = clf.predict_proba(X)[:, 1].reshape(H, W)  # foreground prob
+    y_pred = (y_proba >= 0.5).astype(np.uint8)
+    return y_pred, y_proba
+
+
+def to_features_from_bgr(img_bgr):
+    """
+    Build per-pixel color features from BGR image:
+    [B, G, R, H, S, V, L, a, b]
+    """
+    img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    img_lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
+    B, G, R = cv2.split(img_bgr)
+    H, S, V = cv2.split(img_hsv)
+    L, A, Bb = cv2.split(img_lab)
+    feats = np.stack([B, G, R, H, S, V, L, A, Bb], axis=-1)  # HxWx9
+    return feats
+
+
 class CatheterShapeEstimator:
     def __init__(self, force_cpu=True, voxel_size=0.0005, voxel_range=0.04):
         if force_cpu:
@@ -28,8 +51,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -63,23 +86,27 @@ class CatheterShapeEstimator:
 
         # Load pixel color classification model
         self.pixel_classifiers = []
-        # classifier_base_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification"
-        classifier_base_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification"
-        for i in range(3):
-            classifier_path = os.path.join(
-                classifier_base_path,
-                f"RF_3class_GreenPurpleWhite_cam{i}_model.pkl",
-            )
-            with open(classifier_path, "rb") as f:
-                self.pixel_classifiers.append(pickle.load(f))
+        classifier_base_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification"
+        # classifier_base_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification"
+        # for i in range(3):
+        #     classifier_path = os.path.join(
+        #         classifier_base_path,
+        #         f"RF_3class_GreenPurpleWhite_cam{i}_model.pkl",
+        #     )
+        #     with open(classifier_path, "rb") as f:
+        #         self.pixel_classifiers.append(pickle.load(f))
+        classifier_model = "RF_subtraction_classifier"
+        with open(
+            os.path.join(classifier_base_path, classifier_model + ".pkl"), "rb"
+        ) as f:
+            self.pixel_classifier = pickle.load(f)
 
         # Load ref images for subtraction segmentation method
-        ref_img_dir = "/home/arclab/catkin_ws/src/Catheter-Perception/camera_calibration/08-14-25/test_calib_images"
+        ref_img_dir = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\camera_calibration\\08-13-25\\test_calib_images"
+        # ref_img_dir = "/home/arclab/catkin_ws/src/Catheter-Perception/camera_calibration/08-14-25/test_calib_images"
         self.ref_images = []
         for i in range(self.num_cams):
-            ref_img_path = os.path.join(
-                ref_img_dir, f"cam{i}_0.png"
-            )
+            ref_img_path = os.path.join(ref_img_dir, f"cam{i}_0.png")
             ref_img = cv2.imread(ref_img_path)
             self.ref_images.append(ref_img)
 
@@ -334,7 +361,7 @@ class CatheterShapeEstimator:
             numpy array: Sorted skeleton points.
         """
         # # # # # First perform opening and closing on voxel map
-        voxel_map = ndimage.binary_opening(voxel_map, structure=ball(1)) 
+        voxel_map = ndimage.binary_opening(voxel_map, structure=ball(1))
         voxel_map = ndimage.binary_closing(voxel_map, structure=ball(1))
 
         # Compute base point from min z slice centroid
@@ -542,101 +569,142 @@ class CatheterShapeEstimator:
                 box = self.crop_box[cam_num]
                 image_cropped = image[box[1] : box[3], box[0] : box[2]]
 
-                # Run color classifier
-                class_mask, prob_mask = self.color_classify(
-                    image_cropped, cam_num, visualize=visualize
+                # # Run color classifier
+                # class_mask, prob_mask = self.color_classify(
+                #     image_cropped, cam_num, visualize=visualize
+                # )
+                # max_prob_indices, _ = self.get_max_prob_pixel(prob_mask)
+
+                # Subtraction Segmentation technique
+                t0 = time.perf_counter()
+
+                def overlay_mask_on_image(img_bgr, mask, alpha=0.5):
+                    """Overlay a binary mask onto an image (BGR)."""
+                    overlay = img_bgr.copy()
+                    color = (0, 255, 0)  # green overlay
+                    overlay[mask > 0] = (
+                        overlay[mask > 0] * (1 - alpha)
+                        + np.array(color) * alpha
+                    ).astype(np.uint8)
+                    return overlay
+
+                ref_img = self.ref_images[cam_num]
+                ref_img_cropped = ref_img[box[1] : box[3], box[0] : box[2]]
+                subtracted_img = cv2.absdiff(image_cropped, ref_img_cropped)
+                class_mask, prob_mask = predict_full_image(
+                    self.pixel_classifier, subtracted_img
                 )
-                max_prob_indices, _ = self.get_max_prob_pixel(prob_mask)
-
-                point_coords = None
-                point_labels = None
-                if prompt_type == "max_prob":
-                    # Run SAM predictor using max probability pixel as prompt
-                    labels = [1, 2]
-                    point_coords = np.flip(
-                        max_prob_indices[labels], axis=1
-                    )  # Use red and 'other' pixels as foreground prompts
-                    # (need to flip image coordinates for SAM)
-                    point_labels = np.ones(
-                        point_coords.shape[0]
-                    )  # Label for the point TODO:
-                elif prompt_type == "centroid":
-                    # Use centroids as prompts
-                    cath_mask = class_mask == 1  # cath class mask
-                    tip_mask = class_mask == 2  # tip class mask
-                    tip_mask = self.open_close_mask(
-                        tip_mask
-                    )  # Morphological operations to clean mask
-                    cath_mask = self.open_close_mask(
-                        cath_mask
-                    )  # Morphological operations to clean mask
-                    # # Visualize masks after morphology
-                    # plt.figure(figsize=(12, 6))
-                    # plt.subplot(1, 2, 1)
-                    # plt.imshow(tip_mask, cmap="gray")
-                    # plt.title("Tip Mask post morphology")
-                    # plt.axis("off")
-                    # plt.subplot(1, 2, 2)
-                    # plt.imshow(cath_mask, cmap="gray")
-                    # plt.title("Catheter Mask post morphology")
-                    # plt.axis("off")
-                    # plt.show()
-
-                    tip_centroid = self.get_centroid(tip_mask)
-                    cath_centroid = self.get_centroid(cath_mask)
-                    if cath_centroid is None and tip_centroid is None:
-                        raise ValueError("Both centroids are None")
-                    if cath_centroid is None:
-                        point_coords = np.array([tip_centroid])
-                    elif tip_centroid is None:
-                        point_coords = np.array([cath_centroid])
-                    else:
-                        point_coords = np.array([tip_centroid, cath_centroid])
-                    point_labels = np.ones(point_coords.shape[0])
-                elif prompt_type == "max_prob_centroid":
-                    # Use centroid of main cath region and max prob pixel of tip region
-                    cath_mask = class_mask == 1  # cath class mask
-                    cath_mask = self.open_close_mask(cath_mask, kernel_size=5)
-                    cath_centroid = self.get_centroid(cath_mask)
-                    max_prob_tip = np.flip(max_prob_indices[2])
-                    point_coords = np.array([cath_centroid, max_prob_tip])
-                    point_labels = np.ones(point_coords.shape[0])
-                elif prompt_type == "manual":
-                    # Store the clicked points
-                    self.clicked_points = []
-
-                    def click_event(event, x, y, flags, param):
-                        if event == cv2.EVENT_LBUTTONDOWN:
-                            # Left click: add point as foreground
-                            self.clicked_points.append((x, y, 1))
-                        elif event == cv2.EVENT_RBUTTONDOWN:
-                            # Right click: add point as background
-                            self.clicked_points.append((x, y, 0))
-
-                    # Show the image and set the mouse callback
-                    cv2.imshow("Image", image_cropped.copy())
-                    cv2.setMouseCallback("Image", click_event)
-                    cv2.waitKey(0)
-                    cv2.destroyAllWindows()
-
-                    # Separate the points into coordinates and labels
-                    if not self.clicked_points:
-                        return []  # No points clicked
-
-                    point_coords = np.array(
-                        [pt[:2] for pt in self.clicked_points]
-                    )
-                    point_labels = np.array(
-                        [pt[2] for pt in self.clicked_points]
-                    )
-
-                # SAM segmentation
+                mask_morph = self.open_close_mask(class_mask, kernel_size=10)
+                x, y, w, h = cv2.boundingRect(mask_morph)
+                mask_morph_overlay = overlay_mask_on_image(
+                    image_cropped, mask_morph, alpha=0.42
+                )
+                # cv2.rectangle(
+                #     mask_morph_overlay, (x, y), (x + w, y + h), (255, 0, 0), 2
+                # )
+                # cv2.imshow("Mask Morph Overlay", mask_morph_overlay)
+                # cv2.waitKey(0)
+                # cv2.destroyAllWindows()
+                t1 = time.perf_counter()
+                bounding_box = np.array([x, y, x + w, y + h])
                 self.sam_predictor.set_image(image_cropped)
-                sam_masks, _, _ = self.sam_predictor.predict(
-                    point_coords=point_coords,
-                    point_labels=point_labels,
+                sam_masks, scores, logits = self.sam_predictor.predict(
+                    box=bounding_box,
                     multimask_output=False,
                 )
+                t2 = time.perf_counter()
+                print("Time for color classification:", t1 - t0)
+                print("Time for SAM prediction:", t2 - t1)
+
+                # point_coords = None
+                # point_labels = None
+                # if prompt_type == "max_prob":
+                #     # Run SAM predictor using max probability pixel as prompt
+                #     labels = [1, 2]
+                #     point_coords = np.flip(
+                #         max_prob_indices[labels], axis=1
+                #     )  # Use red and 'other' pixels as foreground prompts
+                #     # (need to flip image coordinates for SAM)
+                #     point_labels = np.ones(
+                #         point_coords.shape[0]
+                #     )  # Label for the point TODO:
+                # elif prompt_type == "centroid":
+                #     # Use centroids as prompts
+                #     cath_mask = class_mask == 1  # cath class mask
+                #     tip_mask = class_mask == 2  # tip class mask
+                #     tip_mask = self.open_close_mask(
+                #         tip_mask
+                #     )  # Morphological operations to clean mask
+                #     cath_mask = self.open_close_mask(
+                #         cath_mask
+                #     )  # Morphological operations to clean mask
+                #     # # Visualize masks after morphology
+                #     # plt.figure(figsize=(12, 6))
+                #     # plt.subplot(1, 2, 1)
+                #     # plt.imshow(tip_mask, cmap="gray")
+                #     # plt.title("Tip Mask post morphology")
+                #     # plt.axis("off")
+                #     # plt.subplot(1, 2, 2)
+                #     # plt.imshow(cath_mask, cmap="gray")
+                #     # plt.title("Catheter Mask post morphology")
+                #     # plt.axis("off")
+                #     # plt.show()
+
+                #     tip_centroid = self.get_centroid(tip_mask)
+                #     cath_centroid = self.get_centroid(cath_mask)
+                #     if cath_centroid is None and tip_centroid is None:
+                #         raise ValueError("Both centroids are None")
+                #     if cath_centroid is None:
+                #         point_coords = np.array([tip_centroid])
+                #     elif tip_centroid is None:
+                #         point_coords = np.array([cath_centroid])
+                #     else:
+                #         point_coords = np.array([tip_centroid, cath_centroid])
+                #     point_labels = np.ones(point_coords.shape[0])
+                # elif prompt_type == "max_prob_centroid":
+                #     # Use centroid of main cath region and max prob pixel of tip region
+                #     cath_mask = class_mask == 1  # cath class mask
+                #     cath_mask = self.open_close_mask(cath_mask, kernel_size=5)
+                #     cath_centroid = self.get_centroid(cath_mask)
+                #     max_prob_tip = np.flip(max_prob_indices[2])
+                #     point_coords = np.array([cath_centroid, max_prob_tip])
+                #     point_labels = np.ones(point_coords.shape[0])
+                # elif prompt_type == "manual":
+                #     # Store the clicked points
+                #     self.clicked_points = []
+
+                #     def click_event(event, x, y, flags, param):
+                #         if event == cv2.EVENT_LBUTTONDOWN:
+                #             # Left click: add point as foreground
+                #             self.clicked_points.append((x, y, 1))
+                #         elif event == cv2.EVENT_RBUTTONDOWN:
+                #             # Right click: add point as background
+                #             self.clicked_points.append((x, y, 0))
+
+                #     # Show the image and set the mouse callback
+                #     cv2.imshow("Image", image_cropped.copy())
+                #     cv2.setMouseCallback("Image", click_event)
+                #     cv2.waitKey(0)
+                #     cv2.destroyAllWindows()
+
+                #     # Separate the points into coordinates and labels
+                #     if not self.clicked_points:
+                #         return []  # No points clicked
+
+                #     point_coords = np.array(
+                #         [pt[:2] for pt in self.clicked_points]
+                #     )
+                #     point_labels = np.array(
+                #         [pt[2] for pt in self.clicked_points]
+                #     )
+
+                # # SAM segmentation
+                # self.sam_predictor.set_image(image_cropped)
+                # sam_masks, _, _ = self.sam_predictor.predict(
+                #     point_coords=point_coords,
+                #     point_labels=point_labels,
+                #     multimask_output=False,
+                # )
 
                 # Visualize SAM masks if needed
                 if visualize:
@@ -645,19 +713,31 @@ class CatheterShapeEstimator:
                         cv2.cvtColor(image_cropped.copy(), cv2.COLOR_BGR2RGB)
                     )
                     plt.imshow(sam_masks[0].copy(), alpha=0.5, cmap="jet")
-                    # Show input points on the image
-                    for pt in point_coords.astype(int):
-                        # # correct pt for cropped image
-                        # pt[0] += box[0]
-                        # pt[1] += box[1]
-                        plt.scatter(
-                            pt[0],
-                            pt[1],
-                            c="lime",
-                            s=50,
-                            marker="x",
-                            label="Input Point",
+                    # # Show input points on the image
+                    # for pt in point_coords.astype(int):
+                    #     # # correct pt for cropped image
+                    #     # pt[0] += box[0]
+                    #     # pt[1] += box[1]
+                    #     plt.scatter(
+                    #         pt[0],
+                    #         pt[1],
+                    #         c="lime",
+                    #         s=50,
+                    #         marker="x",
+                    #         label="Input Point",
+                    #     )
+                    # Show box
+                    plt.gca().add_patch(
+                        plt.Rectangle(
+                            (bounding_box[0], bounding_box[1]),
+                            bounding_box[2] - bounding_box[0],
+                            bounding_box[3] - bounding_box[1],
+                            edgecolor="red",
+                            facecolor="none",
+                            linewidth=2,
+                            label="Bounding Box",
                         )
+                    )
                     plt.title(f"Segmented Image {cam_num}")
                     plt.axis("off")
                     if save_path is not None:
@@ -712,7 +792,8 @@ class CatheterShapeEstimator:
             center_spline = center_spline.T
             # center_spline = center_spline[np.argsort(center_spline[:, 2])[::-1]]
             # print("Center spline shape: ", center_spline.shape)
-
+            t3 = time.perf_counter()
+            print("Time for voxel carving:", t3 - t2)
             # Compute tip position relative to base
             spline_tip = center_spline[-1, :]
             spline_base = center_spline[0, :]
@@ -1111,12 +1192,12 @@ class CatheterShapeEstimator:
 if __name__ == "__main__":
     # Example usage
     estimator = CatheterShapeEstimator(
-        force_cpu=False, voxel_range=0.05, voxel_size=0.00025
+        force_cpu=True, voxel_range=0.05, voxel_size=0.0005
     )
 
     # Load example images (replace with actual image loading)
-    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v1_rework_08_14_25_T3"
-    # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v1_rework_08_14_25_T3"
+    # base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v1_rework_08_14_25_T3"
+    base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v1_rework_08_14_25_T3"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
     cam0_image_files = [
@@ -1194,8 +1275,8 @@ if __name__ == "__main__":
             errors.append(num)
             # Placeholder for error
 
-        # if num == 3:
-        #     break
+        if num == 3:
+            break
 
     avg_base_position = np.mean(all_base_positions, axis=0)
     print(f"Average base position (mm): {avg_base_position * 1e3}")
