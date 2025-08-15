@@ -28,8 +28,8 @@ class CatheterShapeEstimator:
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_type = "vit_b"
-        checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
-        # checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
+        # checkpoint_path = "C:\\Users\\jlim\\Documents\\GitHub\\segment-anything\\models\\sam_vit_b_01ec64.pth"
+        checkpoint_path = "/home/arclab/repos/segment-anything/checkpoints/sam_vit_b_01ec64.pth"
         self.sam = sam_model_registry[self.model_type](
             checkpoint=checkpoint_path
         )
@@ -63,7 +63,8 @@ class CatheterShapeEstimator:
 
         # Load pixel color classification model
         self.pixel_classifiers = []
-        classifier_base_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification"
+        # classifier_base_path = "C:\\Users\\jlim\\Documents\\GitHub\\Catheter-Perception\\pixel_classification"
+        classifier_base_path = "/home/arclab/catkin_ws/src/Catheter-Perception/pixel_classification"
         for i in range(3):
             classifier_path = os.path.join(
                 classifier_base_path,
@@ -71,6 +72,16 @@ class CatheterShapeEstimator:
             )
             with open(classifier_path, "rb") as f:
                 self.pixel_classifiers.append(pickle.load(f))
+
+        # Load ref images for subtraction segmentation method
+        ref_img_dir = "/home/arclab/catkin_ws/src/Catheter-Perception/camera_calibration/08-14-25/test_calib_images"
+        self.ref_images = []
+        for i in range(self.num_cams):
+            ref_img_path = os.path.join(
+                ref_img_dir, f"cam{i}_0.png"
+            )
+            ref_img = cv2.imread(ref_img_path)
+            self.ref_images.append(ref_img)
 
     def voxel_map_setup(self, voxel_size, voxel_range):
         self.voxel_size = voxel_size
@@ -323,7 +334,7 @@ class CatheterShapeEstimator:
             numpy array: Sorted skeleton points.
         """
         # # # # # First perform opening and closing on voxel map
-        voxel_map = ndimage.binary_opening(voxel_map, structure=ball(1))
+        voxel_map = ndimage.binary_opening(voxel_map, structure=ball(1)) 
         voxel_map = ndimage.binary_closing(voxel_map, structure=ball(1))
 
         # Compute base point from min z slice centroid
@@ -357,11 +368,13 @@ class CatheterShapeEstimator:
         # print(sorted_skeleton)
 
         # Fit a spline to the sorted skeleton points
+        print("shape of sorted skeleton: ", sorted_skeleton.shape)
         tck, u = splprep(sorted_skeleton.T)
         u_fine = np.linspace(
             0, 1, 100
         )  # Generate fine parameter values for smooth interpolation
         spline = np.array(splev(u_fine, tck))
+        # spline = sorted_skeleton.T  # Use sorted skeleton directly for now
 
         return spline, sorted_skeleton
 
@@ -1098,12 +1111,12 @@ class CatheterShapeEstimator:
 if __name__ == "__main__":
     # Example usage
     estimator = CatheterShapeEstimator(
-        force_cpu=True, voxel_range=0.05, voxel_size=0.00025
+        force_cpu=False, voxel_range=0.05, voxel_size=0.00025
     )
 
     # Load example images (replace with actual image loading)
-    # base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v2_07_21_25_T1"
-    base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v1_rework_08_14_25_T3"
+    base_dir = "/home/arclab/catkin_ws/src/Catheter-Control/resources/CalibrationData/LC_v1_rework_08_14_25_T3"
+    # base_dir = "C:\\Users\\jlim\\OneDrive - Cor Medical Ventures\\Documents\\Channel Robotics\\Catheter Calibration Data\\LC_v1_rework_08_14_25_T3"
     img_dir = os.path.join(base_dir, "image_snapshots")
 
     cam0_image_files = [
@@ -1181,8 +1194,8 @@ if __name__ == "__main__":
             errors.append(num)
             # Placeholder for error
 
-        if num == 3:
-            break
+        # if num == 3:
+        #     break
 
     avg_base_position = np.mean(all_base_positions, axis=0)
     print(f"Average base position (mm): {avg_base_position * 1e3}")
